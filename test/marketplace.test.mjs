@@ -631,4 +631,10 @@ test("reserved plugin ids reject the bb-- prefix and bundled plugin ids", () => 
   );
   assert.equal(reservedPluginIdProblem("bb-office", reserved), undefined);
   assert.equal(reservedPluginIdProblem("provider-usage", reserved), undefined);
+  assert.match(
+    reservedPluginIdProblem("docs", reserved),
+    /belongs to a plugin bundled with BB/,
+  );
+  assert.equal(reservedPluginIdProblem(undefined, reserved), undefined);
+  assert.equal(reservedPluginIdProblem(42, reserved), undefined);
 });
