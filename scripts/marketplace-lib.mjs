@@ -731,6 +731,7 @@ export function fillEmptyCollections(collections, plugins) {
 }
 
 export function reservedPluginIdProblem(id, reserved) {
+  if (typeof id !== "string") return undefined;
   if (id.startsWith(reserved.reservedPrefix)) {
     return `The id "${id}" starts with "${reserved.reservedPrefix}", which is reserved for plugins bundled with BB.`;
   }

@@ -12,6 +12,7 @@
     "concurrency-limit",
     "connect",
     "custom-instructions",
+    "docs",
     "drafts",
     "environment-git-worktree",
     "environment-modal-sandbox",
