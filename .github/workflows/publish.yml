@@ -20,36 +20,35 @@ jobs:
         if: github.event_name == 'push'
         run: npm run gate:v1
       # Keep this order explicit: assets first, then v2, then v1.
+      # Only assets whose published copy is missing or different are uploaded.
       - name: Upload icons
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
         run: |
           source scripts/r2-upload.sh
-          shopt -s nullglob
-          for icon in icons/*.svg icons/*.png icons/*.webp; do
+          node scripts/changed-assets.mjs icons > changed-icons.txt
+          while IFS= read -r icon <&3; do
             r2_put_with_retry "bb-marketplace/icons/$(basename "$icon")" \
               --file "$icon" --remote
-          done
+          done 3< changed-icons.txt
       - name: Upload screenshots
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
         run: |
           source scripts/r2-upload.sh
-          if [[ ! -d screenshots ]]; then
-            exit 0
-          fi
-          while IFS= read -r -d '' screenshot; do
+          node scripts/changed-assets.mjs screenshots > changed-screenshots.txt
+          while IFS= read -r screenshot <&3; do
             case "$screenshot" in
               *.png) content_type="image/png" ;;
               *.jpg|*.jpeg) content_type="image/jpeg" ;;
               *.webp) content_type="image/webp" ;;
               *) echo "Unsupported screenshot file: $screenshot" >&2; exit 1 ;;
             esac
-            r2_put_with_retry "bb-marketplace/v2/${screenshot#./}" \
+            r2_put_with_retry "bb-marketplace/v2/$screenshot" \
               --file "$screenshot" --content-type "$content_type" --remote
-          done < <(find screenshots -type f -print0 | sort -z)
+          done 3< changed-screenshots.txt
       - name: Upload v2 manifest
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
