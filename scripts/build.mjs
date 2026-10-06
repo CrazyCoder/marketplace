@@ -1,6 +1,8 @@
 #!/usr/bin/env node
 // Build the frozen v1 document and the full v2 document from one source.
 // The --liveness option also checks each remote source.
+// The --ranking <path> option reads recent install counts from
+// scripts/build-ranking.mjs; without it, computed shelves use newest entries.
 import { execFileSync } from "node:child_process";
 import { mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
@@ -12,6 +14,7 @@ import {
   findOrphanOverviewFiles,
   findOrphanScreenshotFiles,
   fillEmptyCollections,
+  orderCategories,
   projectV1Manifest,
   pullRequestEntryFiles,
   readEntryAddedDates,
@@ -23,6 +26,9 @@ import {
 
 const root = fileURLToPath(new URL("..", import.meta.url));
 const liveness = process.argv.includes("--liveness");
+const rankingFlag = process.argv.indexOf("--ranking");
+const rankingPath =
+  rankingFlag === -1 ? undefined : process.argv[rankingFlag + 1];
 const problems = [];
 const warnings = [];
 
@@ -166,6 +172,22 @@ for (const collection of base.collections ?? []) {
   }
 }
 
+function readRanking() {
+  if (rankingPath === undefined) return null;
+  try {
+    const value = readJson(rankingPath);
+    if (value?.schemaVersion === 1 && value.plugins instanceof Object) {
+      return value;
+    }
+  } catch {}
+  warnings.push(
+    `The ranking file ${rankingPath} is not usable. Computed shelves use newest entries and the base category order.`,
+  );
+  return null;
+}
+
+const ranking = readRanking();
+
 const plugins = entryRecords.map(({ entry }) => entry);
 for (const entry of plugins) {
   if (entry.category !== undefined && !categoryIds.has(entry.category)) {
@@ -255,7 +277,12 @@ function entryAddedDates() {
 const collections = fillEmptyCollections(
   base.collections ?? [],
   v2Plugins,
+  ranking,
 );
+const categories =
+  base.categories === undefined
+    ? undefined
+    : orderCategories(base.categories, v2Plugins, ranking);
 const v1Manifest = projectV1Manifest(base, plugins);
 const v2Manifest = {
   $schema: "https://getbb.app/schemas/marketplace-v2.schema.json",
@@ -263,7 +290,7 @@ const v2Manifest = {
   name: base.name,
   displayName: base.displayName,
   ...(base.description === undefined ? {} : { description: base.description }),
-  ...(base.categories === undefined ? {} : { categories: base.categories }),
+  ...(categories === undefined ? {} : { categories }),
   ...(base.collections === undefined ? {} : { collections }),
   plugins: v2Plugins,
 };
